@@ -1,22 +1,21 @@
-import React from 'react';
-import { Note } from '../../types/note';
-import css from './NoteList.module.css';
+import css from "./NoteList.module.css";
+import type { Note } from "../../types/note";
 
 interface NoteListProps {
-  notes: Note[];
-  onDelete: (noteId: string) => void;
+  items: Note[];
+  onDelete: (id: string) => void;
 }
 
-const NoteList: React.FC<NoteListProps> = ({ notes, onDelete }) => {
+export default function NoteList({ items, onDelete }: NoteListProps) {
   return (
     <ul className={css.list}>
-      {notes.map((note) => (
-        <li key={note._id} className={css.listItem}>
-          <h2 className={css.title}>{note.title}</h2>
-          <p className={css.content}>{note.content}</p>
+      {items.map((n) => (
+        <li key={n.id} className={css.listItem}>
+          <h2 className={css.title}>{n.title}</h2>
+          <p className={css.content}>{n.content}</p>
           <div className={css.footer}>
-            <span className={css.tag}>{note.tag.name}</span>
-            <button className={css.button} onClick={() => onDelete(note._id)}>
+            <span className={css.tag}>{n.tag}</span>
+            <button className={css.button} onClick={() => onDelete(n.id)}>
               Delete
             </button>
           </div>
@@ -24,6 +23,4 @@ const NoteList: React.FC<NoteListProps> = ({ notes, onDelete }) => {
       ))}
     </ul>
   );
-};
-
-export default NoteList;
+}

@@ -1,69 +1,56 @@
-import React from 'react';
-import { Formik, Form, Field, ErrorMessage } from 'formik';
-import * as Yup from 'yup';
-import { CreateNoteData } from '../../services/noteService';
-import css from './NoteForm.module.css';
+import React from 'react'
+import { Formik, Form, Field, ErrorMessage, type FormikHelpers } from 'formik'
+import * as Yup from 'yup'
+import type { NoteTag } from '../../types/note'
+import type { CreateNoteParams } from '../../services/noteService'
+import css from './NoteForm.module.css'
 
 interface NoteFormProps {
-  onSubmit: (values: CreateNoteData) => void;
-  onCancel: () => void;
+  onCancel: () => void
+  onSubmit: (values: CreateNoteParams) => void
 }
 
-const validationSchema = Yup.object({
-  title: Yup.string()
-    .min(3, 'Must be at least 3 characters')
-    .max(50, 'Must be 50 characters or less')
-    .required('Required'),
-  content: Yup.string().max(500, 'Must be 500 characters or less'),
-  tag: Yup.string()
-    .oneOf(
-      ['Todo', 'Work', 'Personal', 'Meeting', 'Shopping'],
-      'Invalid tag'
-    )
-    .required('Required'),
-});
+export interface NoteFormValues {
+  title: string
+  content: string
+  tag: NoteTag
+}
 
-const NoteForm: React.FC<NoteFormProps> = ({ onSubmit, onCancel }) => {
+const schema = Yup.object({
+  title: Yup.string().min(3).max(50).required(),
+  content: Yup.string().max(500),
+  tag: Yup.mixed<NoteTag>().oneOf(['Todo', 'Work', 'Personal', 'Meeting', 'Shopping']).required()
+})
+
+const initialValues: NoteFormValues = { title: '', content: '', tag: 'Todo' }
+
+export default function NoteForm({ onCancel, onSubmit }: NoteFormProps) {
   return (
     <Formik
-      initialValues={{ title: '', content: '', tag: 'Todo' }}
-      validationSchema={validationSchema}
-      onSubmit={(values, { setSubmitting }) => {
-        onSubmit(values);
-        setSubmitting(false);
+      initialValues={initialValues}
+      validationSchema={schema}
+      onSubmit={(values: NoteFormValues, actions: FormikHelpers<NoteFormValues>) => {
+        onSubmit(values)
+        actions.setSubmitting(false)
       }}
     >
-      {({ isSubmitting }) => (
+      {({ isSubmitting, isValid }) => (
         <Form className={css.form}>
           <div className={css.formGroup}>
             <label htmlFor="title">Title</label>
             <Field id="title" type="text" name="title" className={css.input} />
-            <ErrorMessage
-              name="title"
-              component="span"
-              className={css.error}
-            />
+            <ErrorMessage name="title" component="span" className={css.error} />
           </div>
 
           <div className={css.formGroup}>
             <label htmlFor="content">Content</label>
-            <Field
-              id="content"
-              name="content"
-              as="textarea"
-              rows={8}
-              className={css.textarea}
-            />
-            <ErrorMessage
-              name="content"
-              component="span"
-              className={css.error}
-            />
+            <Field as="textarea" id="content" name="content" rows={8} className={css.textarea} />
+            <ErrorMessage name="content" component="span" className={css.error} />
           </div>
 
           <div className={css.formGroup}>
             <label htmlFor="tag">Tag</label>
-            <Field id="tag" name="tag" as="select" className={css.select}>
+            <Field as="select" id="tag" name="tag" className={css.select}>
               <option value="Todo">Todo</option>
               <option value="Work">Work</option>
               <option value="Personal">Personal</option>
@@ -74,25 +61,15 @@ const NoteForm: React.FC<NoteFormProps> = ({ onSubmit, onCancel }) => {
           </div>
 
           <div className={css.actions}>
-            <button
-              type="button"
-              className={css.cancelButton}
-              onClick={onCancel}
-            >
+            <button type="button" className={css.cancelButton} onClick={onCancel}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className={css.submitButton}
-              disabled={isSubmitting}
-            >
+            <button type="submit" className={css.submitButton} disabled={!isValid || isSubmitting}>
               Create note
             </button>
           </div>
         </Form>
       )}
     </Formik>
-  );
-};
-
-export default NoteForm;
+  )
+}

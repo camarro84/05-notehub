@@ -1,79 +1,103 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDebounce } from 'use-debounce';
-import * as noteService from '../../services/noteService';
-import NoteList from '../NoteList/NoteList';
-import Modal from '../Modal/Modal';
-import NoteForm from '../NoteForm/NoteForm';
-import Pagination from '../Pagination/Pagination';
-import SearchBox from '../SearchBox/SearchBox';
-import css from './App.module.css';
+import { useEffect, useMemo, useState } from "react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import styles from "./App.module.css";
+import SearchBox from "../SearchBox/SearchBox";
+import Pagination from "../Pagination/Pagination";
+import Modal from "../Modal/Modal";
+import NoteForm from "../NoteForm/NoteForm";
+import NoteList from "../NoteList/NoteList";
+import { fetchNotes, createNote, deleteNote } from "../../services/noteService";
 
-const App: React.FC = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery] = useDebounce(searchQuery, 500);
-  const queryClient = useQueryClient();
+const PER_PAGE = 10;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['notes', currentPage, debouncedSearchQuery],
+function useDebouncedValue<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+export default function App() {
+  const qc = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["notes", page, debouncedSearch],
     queryFn: () =>
-      noteService.fetchNotes({
-        page: currentPage,
-        perPage: 12,
-        search: debouncedSearchQuery,
-      }),
+      fetchNotes({ page, perPage: PER_PAGE, search: debouncedSearch }),
+    placeholderData: keepPreviousData,
   });
 
-  const createNoteMutation = useMutation({
-    mutationFn: noteService.createNote,
+  const items = useMemo(() => data?.items ?? [], [data]);
+  const pageCount = useMemo(() => data?.totalPages ?? 0, [data]);
+
+  const createMutation = useMutation({
+    mutationFn: createNote,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-      setIsModalOpen(false);
+      qc.invalidateQueries({ queryKey: ["notes"] });
+      setIsOpen(false);
+      setSearch("");
+      setPage(1);
     },
   });
 
-  const deleteNoteMutation = useMutation({
-    mutationFn: noteService.deleteNote,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes'] });
-    },
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteNote(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
   });
-
-  const handlePageChange = (selectedItem: { selected: number }) => {
-    setCurrentPage(selectedItem.selected + 1);
-  };
 
   return (
-    <div className={css.app}>
-      <header className={css.toolbar}>
-        <SearchBox value={searchQuery} onChange={setSearchQuery} />
-        {data && data.totalPages > 1 && (
-          <Pagination
-            pageCount={data.totalPages}
-            onPageChange={handlePageChange}
-          />
-        )}
-        <button className={css.button} onClick={() => setIsModalOpen(true)}>
-          Create note +
+    <div className={styles.app}>
+      <div className={styles.toolbar}>
+        <SearchBox value={search} onChange={setSearch} />
+        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          {pageCount > 1 && (
+            <Pagination
+              currentPage={page}
+              pageCount={pageCount}
+              onPageChange={(p: number) => setPage(p)}
+            />
+          )}
+        </div>
+        <button className={styles.button} onClick={() => setIsOpen(true)}>
+          Create
         </button>
-      </header>
-      {isLoading && <div>Loading...</div>}
-      {error && <div>Error: {error.message}</div>}
-      {data && data.notes.length > 0 && (
-        <NoteList notes={data.notes} onDelete={deleteNoteMutation.mutate} />
+      </div>
+
+      {isLoading && <div>Loading…</div>}
+      {isError && <div>Error loading notes</div>}
+
+      {!isLoading && !isError && (
+        <>
+          {items.length === 0 ? (
+            <p>No notes found</p>
+          ) : (
+            <>
+              <NoteList
+                items={items}
+                onDelete={(id: string) => deleteMutation.mutate(id)}
+              />
+            </>
+          )}
+        </>
       )}
-      {isModalOpen && (
-        <Modal onClose={() => setIsModalOpen(false)}>
-          <NoteForm
-            onSubmit={createNoteMutation.mutate}
-            onCancel={() => setIsModalOpen(false)}
-          />
-        </Modal>
-      )}
+
+      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
+        <NoteForm
+          onCancel={() => setIsOpen(false)}
+          onSubmit={(values) => createMutation.mutate(values)}
+        />
+      </Modal>
     </div>
   );
-};
-
-export default App;
+}
