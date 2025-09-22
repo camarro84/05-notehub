@@ -26,28 +26,54 @@ export interface FetchNotesResult {
   totalPages: number;
 }
 
+/* ————— helpers без any ————— */
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function arrProp(o: unknown, key: string): unknown[] | null {
+  if (!isObj(o)) return null;
+  const v = o[key];
+  return Array.isArray(v) ? v : null;
+}
+function objProp(o: unknown, key: string): Record<string, unknown> | null {
+  if (!isObj(o)) return null;
+  const v = o[key];
+  return isObj(v) ? (v as Record<string, unknown>) : null;
+}
+
 export async function fetchNotes(params: FetchNotesParams): Promise<FetchNotesResult> {
   const { page = 1, perPage = 12, search = "" } = params;
 
-  
   const res = await api.get<unknown>("/notes", {
     params: { page, perPage, search: search || undefined },
   });
 
-  const d: any = res.data;
+  const root = res.data;
 
   const items: Note[] =
-    d?.items ??
-    d?.results ??
-    d?.data ??
-    d?.notes ??
-    (Array.isArray(d) ? (d as Note[]) : []);
+    (arrProp(root, "items") as Note[] | null) ??
+    (arrProp(root, "results") as Note[] | null) ??
+    (arrProp(root, "data") as Note[] | null) ??
+    (arrProp(root, "notes") as Note[] | null) ??
+    (Array.isArray(root) ? (root as Note[]) : []);
 
-  const totalPages: number =
-    d?.totalPages ??
-    d?.meta?.totalPages ??
-    d?.pagination?.totalPages ??
-    Math.max(1, Math.ceil((d?.totalItems ?? items.length) / perPage));
+  
+  let totalPages =
+    (isObj(root) && typeof root["totalPages"] === "number"
+      ? (root["totalPages"] as number)
+      : undefined) ??
+    (isObj(root) && isObj(root["meta"]) && typeof (root["meta"] as Record<string, unknown>)["totalPages"] === "number"
+      ? ((root["meta"] as Record<string, unknown>)["totalPages"] as number)
+      : undefined) ??
+    (isObj(root) && isObj(root["pagination"]) && typeof (root["pagination"] as Record<string, unknown>)["totalPages"] === "number"
+      ? ((root["pagination"] as Record<string, unknown>)["totalPages"] as number)
+      : undefined);
+
+  if (totalPages === undefined) {
+    const totalItems =
+      (isObj(root) && typeof root["totalItems"] === "number" ? (root["totalItems"] as number) : undefined) ?? items.length;
+    totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+  }
 
   return { items, totalPages };
 }
