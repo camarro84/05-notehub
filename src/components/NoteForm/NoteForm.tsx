@@ -1,16 +1,15 @@
-import React from 'react'
 import { Formik, Form, Field, ErrorMessage, type FormikHelpers } from 'formik'
 import * as Yup from 'yup'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { NoteTag } from '../../types/note'
-import type { CreateNoteParams } from '../../services/noteService'
+import { createNote, type CreateNoteParams } from '../../services/noteService'
 import css from './NoteForm.module.css'
 
 interface NoteFormProps {
-  onCancel: () => void
-  onSubmit: (values: CreateNoteParams) => void
+  onClose: () => void
 }
 
-export interface NoteFormValues {
+interface NoteFormValues {
   title: string
   content: string
   tag: NoteTag
@@ -24,16 +23,25 @@ const schema = Yup.object({
 
 const initialValues: NoteFormValues = { title: '', content: '', tag: 'Todo' }
 
-export default function NoteForm({ onCancel, onSubmit }: NoteFormProps) {
+export default function NoteForm({ onClose }: NoteFormProps) {
+  const qc = useQueryClient()
+
+  const { mutateAsync, isPending } = useMutation({
+    mutationFn: (values: CreateNoteParams) => createNote(values),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notes'] })
+    }
+  })
+
+  const handleSubmit = async (values: NoteFormValues, actions: FormikHelpers<NoteFormValues>) => {
+    await mutateAsync(values)
+    actions.resetForm()
+    actions.setSubmitting(false)
+    onClose()
+  }
+
   return (
-    <Formik
-      initialValues={initialValues}
-      validationSchema={schema}
-      onSubmit={(values: NoteFormValues, actions: FormikHelpers<NoteFormValues>) => {
-        onSubmit(values)
-        actions.setSubmitting(false)
-      }}
-    >
+    <Formik initialValues={initialValues} validationSchema={schema} onSubmit={handleSubmit}>
       {({ isSubmitting, isValid }) => (
         <Form className={css.form}>
           <div className={css.formGroup}>
@@ -61,10 +69,10 @@ export default function NoteForm({ onCancel, onSubmit }: NoteFormProps) {
           </div>
 
           <div className={css.actions}>
-            <button type="button" className={css.cancelButton} onClick={onCancel}>
+            <button type="button" className={css.cancelButton} onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className={css.submitButton} disabled={!isValid || isSubmitting}>
+            <button type="submit" className={css.submitButton} disabled={!isValid || isSubmitting || isPending}>
               Create note
             </button>
           </div>
