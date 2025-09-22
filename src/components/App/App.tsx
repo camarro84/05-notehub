@@ -32,7 +32,7 @@ export default function App() {
     placeholderData: keepPreviousData,
   });
 
-  const items = useMemo(() => data?.items ?? [], [data]);
+  const items = useMemo(() => data?.notes ?? [], [data]);
   const pageCount = useMemo(() => data?.totalPages ?? 0, [data]);
 
   const handleSearchChange = (v: string) => {
